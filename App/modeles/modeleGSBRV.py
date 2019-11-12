@@ -3,7 +3,7 @@
 
 
 import mysql.connector
-
+from datetime import date
 
 connexionBD = None
 
@@ -37,9 +37,10 @@ def seConnecter( matricule , mdp ) :
 					) 
 					and t1.tra_role <> 'Responsable'
 					and Visiteur.vis_matricule = %s
+					and Visiteur.vis_mdp = %s
 				'''
 
-		curseur.execute( requete , ( matricule , ) )
+		curseur.execute( requete , ( matricule , mdp ) )
 		
 		enregistrement = curseur.fetchone()
 		
@@ -128,13 +129,40 @@ def getEchantillonsOfferts( matricule , numRapportVisite ) :
 	except :
 		return None
 
+def getMotifs() :
+	
+	try :
+		curseur = getConnexionBD().cursor()
+		requete = '''
+					select mot_code , mot_libelle , mot_precision
+					from Motif
+				'''
+		
+		curseur.execute( requete , () )
+		
+		enregistrements = curseur.fetchall()
+		
+		motifs = []
+		for unEnregistrement in enregistrements :
+			unMotif = {}
+			unMotif[ 'mot_code' ] = unEnregistrement[ 0 ]
+			unMotif[ 'mot_libelle' ] = unEnregistrement[ 1 ]
+			unMotif[ 'mot_precision' ] = unEnregistrement[ 2 ]
+			motifs.append( unMotif )
+			
+		curseur.close()
+		return motifs
+		
+	except :
+		return None		
+		
 		
 def getPraticiens() :
 	
 	try :
 		curseur = getConnexionBD().cursor()
 		requete = '''
-					select pra_num , pra_nom , pra_prenom , pra_ville
+					select pra_num , pra_nom , pra_prenom , pra_ville , pra_adresse , pra_cp , pra_coefnotoriete , typ_code
 					from Praticien
 				'''
 		
@@ -149,6 +177,10 @@ def getPraticiens() :
 			unPraticien[ 'pra_nom' ] = unEnregistrement[ 1 ]
 			unPraticien[ 'pra_prenom' ] = unEnregistrement[ 2 ]
 			unPraticien[ 'pra_ville' ] = unEnregistrement[ 3 ]
+			unPraticien[ 'pra_adresse' ] = unEnregistrement[ 4 ]
+			unPraticien[ 'pra_cp' ] = unEnregistrement[ 5 ]
+			unPraticien[ 'pra_coefnotoriete' ] = unEnregistrement[ 6 ]
+			unPraticien[ 'typ_code' ] = unEnregistrement[ 7 ]
 			praticiens.append( unPraticien )
 			
 		curseur.close()
@@ -163,7 +195,7 @@ def getMedicaments() :
 	try :
 		curseur = getConnexionBD().cursor()
 		requete = '''
-					select med_depotlegal , med_nomcommercial
+					select med_depotlegal , med_nomcommercial , fam_code , med_composition , med_effets , med_contreindic , med_prixechantillon
 					from Medicament
 				'''
 		
@@ -176,6 +208,11 @@ def getMedicaments() :
 			unMedicament = {}
 			unMedicament[ 'med_depotlegal' ] = unEnregistrement[ 0 ]
 			unMedicament[ 'med_nomcommercial' ] = unEnregistrement[ 1 ]
+			unMedicament[ 'fam_code' ] = unEnregistrement[ 2 ]
+			unMedicament[ 'med_composition' ] = unEnregistrement[ 3 ]
+			unMedicament[ 'med_effets' ] = unEnregistrement[ 4 ]
+			unMedicament[ 'med_contreindic' ] = unEnregistrement[ 5 ]
+			unMedicament[ 'med_prixechantillon' ] = unEnregistrement[ 6 ]
 			medicaments.append( unMedicament )
 			
 		curseur.close()
@@ -213,7 +250,7 @@ def genererNumeroRapportVisite( matricule ) :
 		return None
 
 
-def enregistrerRapportVisite( matricule , numPraticien , dateVisite , bilan ) :
+def enregistrerRapportVisite( matricule , numPraticien , dateVisite , bilan , coefConfiance, motCode ) :
 	
 	numRapportVisite = genererNumeroRapportVisite( matricule )
 	
@@ -223,11 +260,11 @@ def enregistrerRapportVisite( matricule , numPraticien , dateVisite , bilan ) :
 			curseur = getConnexionBD().cursor()
 
 			requete = '''
-				insert into RapportVisite( vis_matricule , rap_num , rap_date_visite , rap_bilan , pra_num )
-				values( %s , %s , %s , %s , %s )
+				insert into RapportVisite( vis_matricule , rap_num , rap_date_visite , rap_bilan , pra_num , rap_date_saisie , rap_coef_confiance, mot_code)
+				values( %s , %s , %s , %s , %s, %s, %s, %s )
 				'''
 
-			curseur.execute( requete, ( matricule , numRapportVisite , dateVisite , bilan , numPraticien ) )
+			curseur.execute( requete, ( matricule , numRapportVisite , dateVisite , bilan , numPraticien, date.today(), coefConfiance, motCode ) )
 			connexionBD.commit()
 			curseur.close()
 
@@ -240,13 +277,13 @@ def enregistrerRapportVisite( matricule , numPraticien , dateVisite , bilan ) :
 		return None
 		
 		
-def enregistrerEchantillonsOfferts( matricule , numRapport , echantillons ) :
+def enregistrerEchantillonsOfferts( matricule , numRapport , echantillons) :
 	
 	try:
 		curseur = getConnexionBD().cursor()
 		
 		requete = '''
-			insert into Offrir( vis_matricule , rap_num , med_depotlegal , off_quantite )
+			insert into Offrir( vis_matricule , rap_num , med_depotlegal , off_quantite  )
 			values( %s , %s , %s , %s )
 			'''
 			
